@@ -178,7 +178,9 @@ const SavedPitches = () => {
     );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-gray-100">
+    <>
+    <section className="bg-gradient-to-br from-gray-900 via-indigo-950 to-purple-950 text-gray-100">
+    <div className="min-h-screen max-w-7xl mx-auto">
   
       <nav className="bg-gray-800/90 backdrop-blur-md border-b border-gray-700 shadow-lg sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -489,6 +491,8 @@ const SavedPitches = () => {
         }
       `}</style>
     </div>
+    </section>
+    </>
   );
 };
 
