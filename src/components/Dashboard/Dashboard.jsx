@@ -14,26 +14,26 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [landingCode, setLandingCode] = useState("");
   const [showLandingModal, setShowLandingModal] = useState(false);
-  const [loadingLanding, setLoadingLanding] = useState(false);
   const [showLandingPreview, setShowLandingPreview] = useState(false);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // ✅ Generate Pitch
+  // ✅ Generate Pitch + Landing Page Parallel
   const handleGenerate = async () => {
     if (!idea.trim()) return alert("Please enter your startup idea!");
     setLoading(true);
     setResponse("");
+    setLandingCode("");
 
     try {
       const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
-      const prompt = `
+      const pitchPrompt = `
 Startup Idea: ${idea}
 Tone: ${tone}
 
-Return a well-structured startup pitch in clean **Markdown** format with these sections:
+Return a clean, well-structured startup pitch in **Markdown** format with these sections:
 # Startup Name
 ## Tagline
 ### Elevator Pitch
@@ -43,77 +43,101 @@ Return a well-structured startup pitch in clean **Markdown** format with these s
 #### Key Features
 #### Monetization
 ### Landing Page Content
-Make sure headings are bold and formatted with proper markdown syntax.
-      `;
 
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
+Each heading must be bold and properly formatted. Avoid extra # symbols. Keep paragraphs descriptive but concise.
+`;
+
+//       const landingPrompt = `
+// Based on this startup idea: ${idea}
+// Generate a beautiful **landing page** using **HTML + CSS only** (no frameworks).
+// Sections: Hero, About, Problem, Solution, Features, CTA.
+// Use gradients, rounded corners, hover effects, and placeholders ("https://picsum.photos/seed/startup/800/400").
+// Return full HTML + CSS inside <html>, <style>, <body>.
+// `;
+
+// const landingPrompt = `
+// Based on this startup idea: ${idea}
+// Generate a beautiful **landing page** using **HTML + CSS only** (no frameworks).
+// Sections: Hero, About, Problem, Solution, Features, CTA.
+// Use gradients, rounded corners, hover effects, and placeholders ("https://picsum.photos/seed/startup/800/400").
+// ⚠️ Return only the full code in a single HTML file inside <html>, <style>, <body>. 
+// ❌ Do not include explanations, notes, or markdown – only HTML + CSS code.
+// `;
+
+// const landingPrompt = `
+// Based on the startup idea: "${idea}"
+
+// Generate a visually appealing **landing page** using **pure HTML and CSS only**.
+
+// 🚫 Do NOT include explanations, markdown formatting, or comments. Only return raw HTML code wrapped inside <html>, <head>, <style>, and <body> tags.
+
+// ✅ Requirements:
+// - Sections: Hero, About, Problem, Solution, Features, Call-To-Action
+// - Responsive layout using media queries
+// - Use color gradients, hover animations, and modern fonts
+// - Use placeholders from "https://picsum.photos/seed/startup/800/400"
+// - Buttons and features should have hover effects and rounded corners
+// `;
+
+const landingPrompt = `
+You are a professional web designer.
+
+Based on this startup idea: "${idea}"
+
+Generate a fully responsive landing page using **only HTML and CSS**, and nothing else.
+
+⚠️ VERY IMPORTANT:
+- Do NOT include any explanations, markdown, comments, or extra text.
+- Output must start with <html> and end with </html>.
+- No text before or after the HTML.
+- Use sections: Hero, About, Problem, Solution, Features, CTA.
+- Use placeholders like https://picsum.photos/seed/startup/800/400 for images.
+- Use gradients, hover effects, rounded corners.
+
+Only return the full HTML page code.
+`;
+
+
+      // Parallel API calls for instant performance
+      const [pitchRes, landingRes] = await Promise.all([
+        fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: pitchPrompt }] }] }),
         }),
-      });
+        fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: landingPrompt }] }] }),
+        }),
+      ]);
 
-      const data = await res.json();
-      const text =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No text returned from AI.";
-      setResponse(text);
+      const [pitchData, landingData] = await Promise.all([
+        pitchRes.json(),
+        landingRes.json(),
+      ]);
+
+      setResponse(pitchData.candidates?.[0]?.content?.parts?.[0]?.text || "No pitch.");
+      setLandingCode(landingData.candidates?.[0]?.content?.parts?.[0]?.text || "No landing code.");
+      // const landingRaw = landingData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+// const start = landingRaw.indexOf("<html>");
+// const end = landingRaw.lastIndexOf("</html>") + 7;
+// const cleanHTML = start !== -1 && end !== -1 ? landingRaw.slice(start, end) : "Invalid HTML output";
+
+// setLandingCode(cleanHTML);
+
     } catch (err) {
       console.error(err);
-      alert("Error generating pitch.");
+      alert("Error generating pitch or landing page.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ Generate Landing Page HTML + CSS
-  const handleGenerateLandingPage = async () => {
-    if (!response) return alert("Please generate a pitch first!");
-    setLoadingLanding(true);
-    setLandingCode("");
-
-    try {
-      const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
-      const prompt = `
-Based on this startup pitch:
-${response}
-
-Generate a modern, responsive **landing page** using **HTML + CSS only** (no frameworks).
-Sections: Hero, About, Problem, Solution, Features, CTA.
-Include placeholder images using "https://picsum.photos/seed/startup/800/400".
-Use a clean layout, nice font, button hover effects, and soft color palette.
-Return full code wrapped in <html>, <style>, and <body> tags.
-      `;
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      });
-
-      const data = await res.json();
-      const text =
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No HTML/CSS returned.";
-      setLandingCode(text);
-      setShowLandingModal(true);
-    } catch (err) {
-      console.error(err);
-      alert("Error generating landing page code.");
-    } finally {
-      setLoadingLanding(false);
-    }
-  };
-
-  // ✅ Save Pitch
+  // ✅ Save to Firebase
   const handleSavePitch = async () => {
     if (!user) return alert("Please login first!");
     if (!idea || !response) return alert("Generate a pitch first!");
-
     try {
       await addDoc(collection(db, "pitches"), {
         uid: user.uid,
@@ -129,21 +153,53 @@ Return full code wrapped in <html>, <style>, and <body> tags.
     }
   };
 
-  // ✅ Save as PDF
-  const handleSavePDF = () => {
-    if (!response) return alert("Generate a pitch first!");
-    const plainText = response
-      .replace(/[#*_`>~\-]/g, "")
-      .replace(/\n{2,}/g, "\n\n")
-      .trim();
+  // ✅ Save PDF (proper structure)
+const handleSavePDF = () => {
+  if (!response) return alert("Generate a pitch first!");
 
-    const doc = new jsPDF();
-    const lines = doc.splitTextToSize(plainText, 180);
-    doc.text(lines, 10, 10);
-    doc.save("PitchCraft_Pitch.pdf");
-  };
+  // Convert Markdown → clean plain text
+  const plainText = response
+    .replace(/^#+\s*/gm, "") // remove heading hashes
+    .replace(/\*\*(.*?)\*\*/g, "$1") // bold text
+    .replace(/[_*~`]/g, "") // remove markdown chars
+    .replace(/\n{2,}/g, "\n\n") // normalize spacing
+    .trim();
 
-  const handleRegenerate = () => handleGenerate();
+  const doc = new jsPDF({
+    orientation: "p",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 12;
+  const usableWidth = pageWidth - margin * 2;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("PitchCraft Startup Pitch", pageWidth / 2, 20, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+
+  const lines = doc.splitTextToSize(plainText, usableWidth);
+  let y = 35;
+
+  lines.forEach((line) => {
+    if (y > 280) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.text(line, margin, y);
+    y += 7;
+  });
+
+  doc.save("PitchCraft_Pitch.pdf");
+};
+
+
+
+
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100">
@@ -168,7 +224,6 @@ Return full code wrapped in <html>, <style>, and <body> tags.
             </Link>
           </nav>
         </div>
-
         {user && (
           <div className="p-4 border-t border-gray-700">
             <button
@@ -181,7 +236,7 @@ Return full code wrapped in <html>, <style>, and <body> tags.
         )}
       </aside>
 
-      {/* Main */}
+      {/* Main Section */}
       <main className="flex-1 flex flex-col overflow-y-auto">
         <header className="flex justify-between items-center px-6 py-4 bg-gray-900/70 border-b border-gray-700">
           <h1 className="text-xl font-semibold text-indigo-400">
@@ -217,46 +272,29 @@ Return full code wrapped in <html>, <style>, and <body> tags.
           )}
         </header>
 
-        {/* Input + Output */}
+        {/* Input + Loader */}
         <div className="flex-1 flex flex-col items-center px-6 py-8 overflow-y-auto">
-          {/* Input */}
-          <div className="w-full max-w-2xl bg-gray-900/70 border border-gray-700 rounded-2xl shadow-xl p-6 mb-6">
+          <div className="w-full max-w-2xl bg-gray-900/70 border border-gray-700 rounded-2xl shadow-xl p-6 mb-6 relative">
+            {loading && (
+              <div className="absolute inset-0 bg-black/60 flex flex-col justify-center items-center rounded-2xl">
+                <div className="w-10 h-10 border-4 border-t-indigo-500 border-indigo-300 rounded-full animate-spin mb-3 shadow-[0_0_15px_#6366f1]"></div>
+                <p className="text-indigo-400 font-semibold tracking-wide">
+                  Crafting your pitch...
+                </p>
+              </div>
+            )}
+
             <h2 className="text-2xl font-semibold text-indigo-400 mb-4 text-center">
               Generate Your Startup Pitch 🚀
             </h2>
 
-            <div className="relative">
-              <textarea
-                value={loading ? "" : idea}
-                onChange={(e) => setIdea(e.target.value)}
-                placeholder="Describe your startup idea..."
-                disabled={loading}
-                className="w-full h-40 p-4 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 resize-none"
-              />
-              {/* {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-800/70 rounded-lg">
-                  <div className="flex flex-col items-center">
-                    <div className="loader mb-2 w-8 h-8 border-4 border-t-indigo-500 border-gray-600 rounded-full animate-spin"></div>
-                    <span className="text-gray-300">Generating pitch...</span>
-                  </div>
-                </div>
-              )} */}
-
-
-              {loading && (
-  <div className="absolute inset-0 flex items-center justify-center backdrop-blur-sm bg-gray-950/80 rounded-lg border border-gray-800 shadow-inner">
-    <div className="flex flex-col items-center">
-      <div className="relative mb-3">
-        <div className="w-10 h-10 border-4 border-gray-700 border-t-indigo-500 rounded-full animate-spin"></div>
-        <div className="absolute inset-0 rounded-full blur-md bg-indigo-500/20 animate-pulse"></div>
-      </div>
-      <span className="text-indigo-300 font-medium tracking-wide">
-        Generating pitch...
-      </span>
-    </div>
-  </div>
-)}
-            </div>
+            <textarea
+              value={loading ? "" : idea}
+              onChange={(e) => setIdea(e.target.value)}
+              placeholder="Describe your startup idea..."
+              disabled={loading}
+              className="w-full h-40 p-4 rounded-lg bg-gray-800 border border-gray-700 text-gray-100 placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 resize-none"
+            />
 
             <div className="flex justify-between mt-4">
               <select
@@ -267,7 +305,6 @@ Return full code wrapped in <html>, <style>, and <body> tags.
                 <option value="Formal">Formal</option>
                 <option value="Fun">Fun</option>
               </select>
-
               <button
                 onClick={handleGenerate}
                 disabled={loading}
@@ -282,70 +319,62 @@ Return full code wrapped in <html>, <style>, and <body> tags.
             </div>
           </div>
 
-          {/* Output */}
+          {/* Output Section */}
           {response && (
             <div className="w-full max-w-2xl bg-gray-900/70 border border-gray-700 rounded-2xl shadow-xl p-6">
-              <div className="flex justify-center mb-4">
+              <div className="flex justify-center mb-4 gap-3">
                 <button
-                  onClick={handleGenerateLandingPage}
-                  disabled={loadingLanding}
-                  className={`px-5 py-2 font-semibold rounded-lg transition ${
-                    loadingLanding
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-pink-600 hover:bg-pink-700"
-                  }`}
+                  onClick={handleGenerate}
+                  className="px-5 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold"
                 >
-                  {loadingLanding ? "Generating..." : "🧱 Landing Page Code"}
+                  🔁 Regenerate
+                </button>
+                <button
+                  onClick={() => setShowLandingModal(true)}
+                  disabled={!landingCode}
+                  className="px-5 py-2 font-semibold rounded-lg transition bg-pink-600 hover:bg-pink-700"
+                >
+                  🧱 Landing Page Code
                 </button>
               </div>
 
-              {/* Markdown Output with Section Backgrounds */}
               <div className="space-y-4">
-                
-                  {response
-  .replace(/^.*?(?=# )/s, "")
-  .split(/(?=# )/)
-  .filter((section) => section.trim() !== "" && !section.toLowerCase().includes("here"))
-  .map((section, index) => (
+                {response
+                  .replace(/^.*?(?=# )/s, "")
+                  .split(/(?=# )/)
+                  .filter((section) => section.trim() !== "")
+                  .map((section, i) => (
                     <div
-                      key={index}
-                      className={`p-5 rounded-xl shadow-md ${
-                        index % 4 === 0
-                          ? "bg-gradient-to-r from-gray-800 to-gray-900"
-                          : index % 4 === 1
-                          ? "bg-gradient-to-r from-indigo-900/40 to-purple-900/40"
-                          : index % 4 === 2
-                          ? "bg-gradient-to-r from-teal-900/40 to-cyan-900/40"
-                          : "bg-gradient-to-r from-pink-900/40 to-rose-900/40"
+                      key={i}
+                      className={`p-5 rounded-xl shadow-lg ${
+                        i % 2 === 0
+                          ? "bg-gradient-to-r from-indigo-900/60 to-purple-900/40"
+                          : "bg-gradient-to-r from-gray-800/60 to-gray-900/40"
                       }`}
                     >
                       <ReactMarkdown
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          h1: ({ children }) => (
-                            <h1 className="text-2xl font-bold text-indigo-400 mb-2">
-                              {children}
-                            </h1>
+                          h1: ({ ...props }) => (
+                            <h1 className="text-2xl font-bold text-indigo-400 mb-2" {...props} />
                           ),
-                          h2: ({ children }) => (
-                            <h2 className="text-xl font-semibold text-purple-300 mb-2">
-                              {children}
-                            </h2>
+                          h2: ({ ...props }) => (
+                            <h2 className="text-xl font-semibold text-pink-400 mb-2" {...props} />
                           ),
-                          h3: ({ children }) => (
-                            <h3 className="text-lg font-semibold text-teal-300 mb-2">
-                              {children}
-                            </h3>
+                          h3: ({ ...props }) => (
+                            <h3 className="text-lg font-semibold text-teal-400 mb-2" {...props} />
                           ),
-                          h4: ({ children }) => (
-                            <h4 className="text-md font-semibold text-pink-300 mb-1">
-                              {children}
-                            </h4>
+                          h4: ({ ...props }) => (
+                            <h4 className="text-md font-semibold text-purple-400 mb-1" {...props} />
                           ),
-                          p: ({ children }) => (
-                            <p className="text-gray-200 leading-relaxed">
-                              {children}
-                            </p>
+                          p: ({ ...props }) => (
+                            <p className="text-gray-200 leading-relaxed" {...props} />
+                          ),
+                          li: ({ ...props }) => (
+                            <li className="list-disc ml-5 text-gray-300" {...props} />
+                          ),
+                          strong: ({ ...props }) => (
+                            <strong className="text-yellow-300 font-bold" {...props} />
                           ),
                         }}
                       >
@@ -355,7 +384,6 @@ Return full code wrapped in <html>, <style>, and <body> tags.
                   ))}
               </div>
 
-              {/* Buttons Below Markdown */}
               <div className="flex flex-wrap gap-3 justify-center mt-6">
                 <button
                   onClick={handleSavePitch}
@@ -369,19 +397,13 @@ Return full code wrapped in <html>, <style>, and <body> tags.
                 >
                   🧾 Save as PDF
                 </button>
-                <button
-                  onClick={handleRegenerate}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold"
-                >
-                  🔁 Regenerate
-                </button>
               </div>
             </div>
           )}
         </div>
       </main>
 
-      {/* Landing Page Code Modal */}
+      {/* Landing Page Modal */}
       {showLandingModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[90%] max-w-4xl p-6 relative">
@@ -396,8 +418,6 @@ Return full code wrapped in <html>, <style>, and <body> tags.
                 ✖
               </button>
             </div>
-
-            {/* Preview Button (Top) */}
             <div className="flex justify-end mb-3">
               <button
                 onClick={() => setShowLandingPreview(true)}
@@ -406,8 +426,6 @@ Return full code wrapped in <html>, <style>, and <body> tags.
                 🌐 Preview Website
               </button>
             </div>
-
-            {/* Code Display */}
             <pre className="bg-gray-800 text-gray-200 p-4 rounded-lg max-h-[70vh] overflow-y-auto text-sm whitespace-pre-wrap">
               {landingCode}
             </pre>
