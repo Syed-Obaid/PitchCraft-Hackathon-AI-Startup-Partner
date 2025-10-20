@@ -18,7 +18,7 @@ function App() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  // ✅ Generate Pitch + Landing Page Parallel
+ 
   const handleGenerate = async () => {
     if (!idea.trim()) return alert("Please enter your startup idea!");
     setLoading(true);
@@ -47,37 +47,6 @@ Return a clean, well-structured startup pitch in **Markdown** format with these 
 Each heading must be bold and properly formatted. Avoid extra # symbols. Keep paragraphs descriptive but concise.
 `;
 
-//       const landingPrompt = `
-// Based on this startup idea: ${idea}
-// Generate a beautiful **landing page** using **HTML + CSS only** (no frameworks).
-// Sections: Hero, About, Problem, Solution, Features, CTA.
-// Use gradients, rounded corners, hover effects, and placeholders ("https://picsum.photos/seed/startup/800/400").
-// Return full HTML + CSS inside <html>, <style>, <body>.
-// `;
-
-// const landingPrompt = `
-// Based on this startup idea: ${idea}
-// Generate a beautiful **landing page** using **HTML + CSS only** (no frameworks).
-// Sections: Hero, About, Problem, Solution, Features, CTA.
-// Use gradients, rounded corners, hover effects, and placeholders ("https://picsum.photos/seed/startup/800/400").
-// ⚠️ Return only the full code in a single HTML file inside <html>, <style>, <body>. 
-// ❌ Do not include explanations, notes, or markdown – only HTML + CSS code.
-// `;
-
-// const landingPrompt = `
-// Based on the startup idea: "${idea}"
-
-// Generate a visually appealing **landing page** using **pure HTML and CSS only**.
-
-// 🚫 Do NOT include explanations, markdown formatting, or comments. Only return raw HTML code wrapped inside <html>, <head>, <style>, and <body> tags.
-
-// ✅ Requirements:
-// - Sections: Hero, About, Problem, Solution, Features, Call-To-Action
-// - Responsive layout using media queries
-// - Use color gradients, hover animations, and modern fonts
-// - Use placeholders from "https://picsum.photos/seed/startup/800/400"
-// - Buttons and features should have hover effects and rounded corners
-// `;
 
 const landingPrompt = `
 You are a professional web designer.
@@ -98,7 +67,7 @@ Only return the full HTML page code.
 `;
 
 
-      // Parallel API calls for instant performance
+      
       const [pitchRes, landingRes] = await Promise.all([
         fetch(endpoint, {
           method: "POST",
@@ -119,12 +88,7 @@ Only return the full HTML page code.
 
       setResponse(pitchData.candidates?.[0]?.content?.parts?.[0]?.text || "No pitch.");
       setLandingCode(landingData.candidates?.[0]?.content?.parts?.[0]?.text || "No landing code.");
-      // const landingRaw = landingData.candidates?.[0]?.content?.parts?.[0]?.text || "";
-// const start = landingRaw.indexOf("<html>");
-// const end = landingRaw.lastIndexOf("</html>") + 7;
-// const cleanHTML = start !== -1 && end !== -1 ? landingRaw.slice(start, end) : "Invalid HTML output";
-
-// setLandingCode(cleanHTML);
+      
 
     } catch (err) {
       console.error(err);
@@ -134,7 +98,7 @@ Only return the full HTML page code.
     }
   };
 
-  // ✅ Save to Firebase
+  
   const handleSavePitch = async () => {
     if (!user) return alert("Please login first!");
     if (!idea || !response) return alert("Generate a pitch first!");
@@ -153,16 +117,15 @@ Only return the full HTML page code.
     }
   };
 
-  // ✅ Save PDF (proper structure)
 const handleSavePDF = () => {
   if (!response) return alert("Generate a pitch first!");
 
-  // Convert Markdown → clean plain text
+ 
   const plainText = response
-    .replace(/^#+\s*/gm, "") // remove heading hashes
-    .replace(/\*\*(.*?)\*\*/g, "$1") // bold text
-    .replace(/[_*~`]/g, "") // remove markdown chars
-    .replace(/\n{2,}/g, "\n\n") // normalize spacing
+    .replace(/^#+\s*/gm, "") 
+    .replace(/\*\*(.*?)\*\*/g, "$1") 
+    .replace(/[_*~`]/g, "") 
+    .replace(/\n{2,}/g, "\n\n") 
     .trim();
 
   const doc = new jsPDF({
@@ -203,7 +166,7 @@ const handleSavePDF = () => {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100">
-      {/* Sidebar */}
+      
       <aside className="w-64 bg-gray-900/80 border-r border-gray-700 flex flex-col justify-between">
         <div>
           <div className="p-6 text-2xl font-bold text-indigo-400 border-b border-gray-700">
@@ -236,7 +199,7 @@ const handleSavePDF = () => {
         )}
       </aside>
 
-      {/* Main Section */}
+     
       <main className="flex-1 flex flex-col overflow-y-auto">
         <header className="flex justify-between items-center px-6 py-4 bg-gray-900/70 border-b border-gray-700">
           <h1 className="text-xl font-semibold text-indigo-400">
@@ -272,7 +235,7 @@ const handleSavePDF = () => {
           )}
         </header>
 
-        {/* Input + Loader */}
+     
         <div className="flex-1 flex flex-col items-center px-6 py-8 overflow-y-auto">
           <div className="w-full max-w-2xl bg-gray-900/70 border border-gray-700 rounded-2xl shadow-xl p-6 mb-6 relative">
             {loading && (
@@ -319,7 +282,7 @@ const handleSavePDF = () => {
             </div>
           </div>
 
-          {/* Output Section */}
+          
           {response && (
             <div className="w-full max-w-2xl bg-gray-900/70 border border-gray-700 rounded-2xl shadow-xl p-6">
               <div className="flex justify-center mb-4 gap-3">
@@ -403,7 +366,7 @@ const handleSavePDF = () => {
         </div>
       </main>
 
-      {/* Landing Page Modal */}
+      
       {showLandingModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl w-[90%] max-w-4xl p-6 relative">
@@ -433,7 +396,7 @@ const handleSavePDF = () => {
         </div>
       )}
 
-      {/* Landing Page Preview */}
+      
       {showLandingPreview && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-700 rounded-2xl p-4 w-[90%] max-w-5xl">
