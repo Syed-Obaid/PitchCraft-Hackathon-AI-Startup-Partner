@@ -23,12 +23,17 @@ export const AuthProvider = ({ children }) => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-          <h2 className="text-xl font-semibold text-gray-700">PitchCraft</h2>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-gray-200">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="relative">
+            <div className="w-10 h-10 border-4 border-gray-700 border-t-indigo-500 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 rounded-full blur-md bg-indigo-500/20 animate-pulse"></div>
+          </div>
+          <h2 className="text-2xl font-bold text-indigo-400 tracking-wide">
+            PitchCraft
+          </h2>
+          <p className="text-gray-400 text-sm">Loading your experience...</p>
         </div>
-        <p className="text-gray-500 text-sm mt-2">Loading your experience...</p>
       </div>
     );
   }

@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+.markdown-styled h1 {
+  color: #60a5fa;
+  font-size: 1.6rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-styled h2 {
+  color: #a78bfa;
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-styled h3 {
+  color: #34d399;
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-styled h4 {
+  color: #fbbf24;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-styled p {
+  color: #e5e7eb;
+  line-height: 1.6;
+}
+.markdown-styled strong {
+  color: #f472b6;
+}
+.markdown-styled ul {
+  color: #cbd5e1;
+  list-style: disc;
+  margin-left: 1.2rem;
+}
+
+/* Loader Spinner */
+.loader {
+  border-top-color: #6366f1;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
