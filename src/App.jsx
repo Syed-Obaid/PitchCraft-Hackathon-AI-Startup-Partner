@@ -7,6 +7,7 @@ import SavedPitches from './components/SavedPitch/SavedPitches';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './PublicRoute';
+import SharePitch from './components/SharePitch/SharePitch';
 
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route path="/share/:id" element={<SharePitch />} />
         <Route
           path="/saved"
           element={
