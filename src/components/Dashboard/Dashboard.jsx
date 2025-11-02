@@ -37,11 +37,49 @@ function App() {
   const [editText, setEditText] = useState("");
   const [hoveredMessageId, setHoveredMessageId] = useState(null);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const textareaRef = useRef(null);
   const messagesEndRef = useRef(null);
   const landingPreviewRef = useRef(null);
+  const sidebarRef = useRef(null);
+
+  // Close sidebar when clicking outside on mobile
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sidebarOpen && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        if (window.innerWidth < 768) {
+          setSidebarOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [sidebarOpen]);
+
+  // Handle sidebar state based on screen size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) {
+        // Keep current state on desktop
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+
+    if (window.innerWidth >= 768) {
+      setSidebarOpen(true);
+    } else {
+      setSidebarOpen(false);
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -55,17 +93,6 @@ function App() {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [idea]);
-
-  // Auto-generate PDF when new AI response comes
-  useEffect(() => {
-    const latestAIMessage = messages.find(msg => msg.type === 'ai' && msg.isLatest);
-    if (latestAIMessage && latestAIMessage.text && latestAIMessage.landingCode) {
-      // Auto-save PDF after a short delay
-      setTimeout(() => {
-        handleAutoSavePDF();
-      }, 1000);
-    }
-  }, [messages]);
 
   // Current response and landing code from last AI message
   const currentResponse = messages.find(msg => msg.type === 'ai' && msg.isLatest)?.text || "";
@@ -255,16 +282,13 @@ function App() {
   const cleanHTMLCode = (code) => {
     if (!code) return "";
     
-    // Remove markdown code blocks
     let cleaned = code.replace(/```html/g, '').replace(/```/g, '').trim();
     
-    // If it contains HTML tags, extract only the HTML part
     const htmlMatch = cleaned.match(/<(!DOCTYPE|html|body|head|div|section|header|footer)[^>]*>[\s\S]*<\/\1>/i);
     if (htmlMatch) {
       cleaned = htmlMatch[0];
     }
     
-    // Ensure it has proper HTML structure
     if (!cleaned.includes('<!DOCTYPE') && !cleaned.includes('<html')) {
       cleaned = `<!DOCTYPE html>
 <html lang="en">
@@ -298,7 +322,6 @@ function App() {
     
     let updatedMessages;
     if (editMessageId) {
-      // Editing existing message - remove all messages after the edited one
       const editIndex = messages.findIndex(msg => msg.id === editMessageId);
       updatedMessages = messages.slice(0, editIndex).map(msg => 
         msg.id === editMessageId ? { ...msg, text: promptText } : msg
@@ -306,7 +329,6 @@ function App() {
       setEditingMessageId(null);
       setEditText("");
     } else {
-      // New message
       const newMessage = { 
         type: 'user', 
         text: promptText,
@@ -314,7 +336,6 @@ function App() {
         timestamp: new Date()
       };
       updatedMessages = [...messages, newMessage];
-      // Clear input immediately after sending (like ChatGPT)
       setIdea("");
     }
     
@@ -331,14 +352,12 @@ function App() {
 
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`;
 
-      // Build context-aware prompt with full conversation history
       let prompt = "";
       const conversationHistory = updatedMessages
         .map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${msg.text}`)
         .join('\n\n');
 
       if (updatedMessages.length === 1 || editMessageId) {
-        // First message or editing - generate complete pitch
         prompt = `
 Startup Idea: ${promptText}
 Tone: ${tone}
@@ -373,7 +392,6 @@ Landing Page Content
 [Provide content for the landing page]
 `;
       } else {
-        // Follow-up message - continue conversation with full context
         prompt = `Conversation History:
 ${conversationHistory}
 
@@ -383,7 +401,6 @@ Tone: ${tone}
 Please provide a helpful response that continues the conversation about this startup pitch. Maintain the context from previous messages and address the user's specific request.`;
       }
 
-      // Enhanced landing page prompt for diverse designs and relevant images
       const landingPrompt = `
 You are a professional HTML/CSS developer specializing in creating unique, modern landing pages for startups.
 
@@ -477,10 +494,8 @@ Generate the HTML now:
 
       let generatedLandingCode = landingData.candidates?.[0]?.content?.parts?.[0]?.text || "";
       
-      // Clean the landing code
       generatedLandingCode = cleanHTMLCode(generatedLandingCode);
 
-      // Add new AI message
       const finalMessages = [
         ...updatedMessages,
         { 
@@ -499,7 +514,6 @@ Generate the HTML now:
         setShowCodeSection(true);
       }
       
-      // Auto-save after generation
       const savedId = await autoSavePitch(finalMessages, currentSessionId);
       if (savedId) {
         setCurrentSessionId(savedId);
@@ -550,7 +564,6 @@ Generate the HTML now:
         setCurrentSessionId(pitchId);
         
         if (data.messages && Array.isArray(data.messages)) {
-          // Ensure all messages have IDs and proper structure
           const messagesWithIds = data.messages.map(msg => ({
             ...msg,
             id: msg.id || Date.now().toString() + Math.random(),
@@ -581,6 +594,9 @@ Generate the HTML now:
         setShowMenuForPitch(null);
         setEditingMessageId(null);
         setEditText("");
+        if (window.innerWidth < 768) {
+          setSidebarOpen(false);
+        }
       }
     } catch (err) {
       console.error("Error loading pitch:", err);
@@ -595,6 +611,9 @@ Generate the HTML now:
     setShowMenuForPitch(null);
     setEditingMessageId(null);
     setEditText("");
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   };
 
   const copyCode = () => {
@@ -603,199 +622,18 @@ Generate the HTML now:
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  // Auto-save PDF function (called automatically when new response comes)
-  const handleAutoSavePDF = async () => {
-    if (!currentResponse || !currentLandingCode) return;
-    
-    setGeneratingPDF(true);
-    
-    try {
-      // Create a temporary iframe to render the landing page for screenshot
-      const tempIframe = document.createElement('iframe');
-      tempIframe.style.position = 'absolute';
-      tempIframe.style.left = '-9999px';
-      tempIframe.style.width = '1200px';
-      tempIframe.style.height = '800px';
-      tempIframe.srcdoc = currentLandingCode;
-      document.body.appendChild(tempIframe);
-
-      tempIframe.onload = async () => {
-        try {
-          const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
-          const pageWidth = doc.internal.pageSize.getWidth();
-          const margin = 15;
-          const usableWidth = pageWidth - margin * 2;
-
-          // Add header
-          doc.setFillColor(30, 41, 59);
-          doc.rect(0, 0, pageWidth, 25, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(20);
-          doc.text("PitchCraft AI - Startup Pitch", pageWidth / 2, 15, { align: "center" });
-
-          let y = 40;
-
-          // Add pitch content
-          doc.setTextColor(0, 0, 0);
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(12);
-
-          const plainText = currentResponse
-            .replace(/^#+\s*/gm, "")
-            .replace(/\*\*(.*?)\*\*/g, "$1")
-            .replace(/[_*~`]/g, "")
-            .replace(/\n{2,}/g, "\n\n")
-            .trim();
-
-          const lines = doc.splitTextToSize(plainText, usableWidth);
-          
-          lines.forEach((line) => {
-            if (y > 270) {
-              doc.addPage();
-              y = 20;
-            }
-            doc.text(line, margin, y);
-            y += 6;
-          });
-
-          // Add landing page screenshot
-          if (currentLandingCode) {
-            y += 15;
-            if (y > 250) {
-              doc.addPage();
-              y = 20;
-            }
-
-            // Landing page title
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(16);
-            doc.setTextColor(79, 70, 229);
-            doc.text("🌐 Landing Page Preview", margin, y);
-            y += 10;
-
-            try {
-              // Capture screenshot of the landing page
-              const canvas = await html2canvas(tempIframe.contentDocument.body, {
-                scale: 0.5, // Lower scale for smaller file size
-                useCORS: true,
-                allowTaint: true,
-                width: 1200,
-                height: tempIframe.contentDocument.body.scrollHeight,
-                windowWidth: 1200,
-                windowHeight: tempIframe.contentDocument.body.scrollHeight
-              });
-
-              const imgData = canvas.toDataURL('image/jpeg', 0.7);
-              
-              // Calculate dimensions to fit page width
-              const imgWidth = pageWidth - margin * 2;
-              const imgHeight = (canvas.height * imgWidth) / canvas.width;
-              
-              if (y + imgHeight > 270) {
-                doc.addPage();
-                y = 20;
-              }
-              
-              doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
-              y += imgHeight + 10;
-              
-            } catch (screenshotError) {
-              console.error("Screenshot failed:", screenshotError);
-              // Fallback: Add code section instead
-              doc.setFont("helvetica", "normal");
-              doc.setFontSize(10);
-              doc.setTextColor(100, 100, 100);
-              doc.text("Landing page preview unavailable - code provided below", margin, y);
-              y += 10;
-            }
-
-            // Add HTML code section
-            if (y > 250) {
-              doc.addPage();
-              y = 20;
-            }
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(14);
-            doc.setTextColor(219, 39, 119);
-            doc.text("HTML Source Code:", margin, y);
-            y += 8;
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(0, 0, 0);
-
-            const codeLines = doc.splitTextToSize(currentLandingCode, usableWidth - 10);
-            
-            // Add code background
-            doc.setFillColor(248, 250, 252);
-            doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8, 'F');
-            
-            // Add border
-            doc.setDrawColor(226, 232, 240);
-            doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8);
-
-            codeLines.forEach((line) => {
-              if (y > 270) {
-                doc.addPage();
-                y = 20;
-                // Redraw background and border on new page
-                doc.setFillColor(248, 250, 252);
-                doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8, 'F');
-                doc.setDrawColor(226, 232, 240);
-                doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8);
-              }
-              doc.text(line, margin + 2, y);
-              y += 3;
-            });
-          }
-
-          // Add footer
-          const totalPages = doc.internal.getNumberOfPages();
-          for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text(`Generated by PitchCraft AI - Page ${i} of ${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
-            doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 5, { align: "center" });
-          }
-
-          // Auto-save the PDF (you can modify this to save to server or just keep it ready)
-          console.log("PDF auto-generated successfully");
-          
-        } catch (error) {
-          console.error("PDF generation error:", error);
-        } finally {
-          document.body.removeChild(tempIframe);
-          setGeneratingPDF(false);
-        }
-      };
-    } catch (error) {
-      console.error("PDF auto-save error:", error);
-      setGeneratingPDF(false);
-    }
-  };
-
-  // Manual PDF download function
   const handleSavePDF = async () => {
     if (!currentResponse) return alert("Generate a pitch first!");
-    
     setGeneratingPDF(true);
-    
+
     try {
-      // Use the same logic as handleAutoSavePDF but force download
-      await handleAutoSavePDF();
-      
-      // Create and download PDF
       const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const margin = 15;
       const usableWidth = pageWidth - margin * 2;
 
-      // Add header
       doc.setFillColor(30, 41, 59);
-      doc.rect(0, 0, pageWidth, 25, 'F');
+      doc.rect(0, 0, pageWidth, 25, "F");
       doc.setTextColor(255, 255, 255);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
@@ -803,11 +641,9 @@ Generate the HTML now:
 
       let y = 40;
 
-      // Add pitch content
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(12);
-
       const plainText = currentResponse
         .replace(/^#+\s*/gm, "")
         .replace(/\*\*(.*?)\*\*/g, "$1")
@@ -816,7 +652,6 @@ Generate the HTML now:
         .trim();
 
       const lines = doc.splitTextToSize(plainText, usableWidth);
-      
       lines.forEach((line) => {
         if (y > 270) {
           doc.addPage();
@@ -826,7 +661,6 @@ Generate the HTML now:
         y += 6;
       });
 
-      // Add landing page section with screenshot attempt
       if (currentLandingCode) {
         y += 15;
         if (y > 250) {
@@ -837,101 +671,65 @@ Generate the HTML now:
         doc.setFont("helvetica", "bold");
         doc.setFontSize(16);
         doc.setTextColor(79, 70, 229);
-        doc.text("🌐 Landing Page", margin, y);
+        doc.text("🌐 Landing Page Preview", margin, y);
         y += 10;
 
-        // Try to add screenshot, fallback to code
         try {
-          const tempIframe = document.createElement('iframe');
-          tempIframe.style.position = 'absolute';
-          tempIframe.style.left = '-9999px';
-          tempIframe.style.width = '1200px';
-          tempIframe.style.height = '800px';
-          tempIframe.srcdoc = currentLandingCode;
-          document.body.appendChild(tempIframe);
+          const tempDiv = document.createElement("div");
+          tempDiv.style.position = "fixed";
+          tempDiv.style.left = "-9999px";
+          tempDiv.style.top = "0";
+          tempDiv.style.width = "1000px";
+          tempDiv.style.background = "#fff";
+          tempDiv.innerHTML = currentLandingCode;
+          document.body.appendChild(tempDiv);
 
-          await new Promise((resolve) => {
-            tempIframe.onload = resolve;
-          });
+          await new Promise((r) => setTimeout(r, 1000));
 
-          const canvas = await html2canvas(tempIframe.contentDocument.body, {
-            scale: 0.5,
+          const canvas = await html2canvas(tempDiv, {
+            scale: 2,
             useCORS: true,
-            width: 1200,
-            height: Math.min(tempIframe.contentDocument.body.scrollHeight, 2000)
+            backgroundColor: "#ffffff",
+            logging: false,
           });
 
-          const imgData = canvas.toDataURL('image/jpeg', 0.7);
+          const imgData = canvas.toDataURL("image/png", 1.0);
           const imgWidth = pageWidth - margin * 2;
-          const imgHeight = (canvas.height * imgWidth) / canvas.width;
-          
+          const aspectRatio = canvas.height / canvas.width;
+          const imgHeight = imgWidth * aspectRatio;
+
           if (y + imgHeight > 270) {
             doc.addPage();
             y = 20;
           }
-          
-          doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+
+          doc.addImage(imgData, "PNG", margin, y, imgWidth, imgHeight);
           y += imgHeight + 10;
-          
-          document.body.removeChild(tempIframe);
-        } catch (screenshotError) {
-          console.error("Screenshot failed, using code fallback:", screenshotError);
+
+          document.body.removeChild(tempDiv);
+        } catch (error) {
+          console.error("Screenshot failed:", error);
           doc.setFont("helvetica", "normal");
           doc.setFontSize(10);
           doc.setTextColor(100, 100, 100);
-          doc.text("Landing page code provided below", margin, y);
-          y += 10;
+          doc.text("Landing page preview unavailable.", margin, y);
         }
-
-        // Add HTML code
-        if (y > 250) {
-          doc.addPage();
-          y = 20;
-        }
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
-        doc.setTextColor(219, 39, 119);
-        doc.text("HTML Source Code:", margin, y);
-        y += 8;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(0, 0, 0);
-
-        const codeLines = doc.splitTextToSize(currentLandingCode, usableWidth - 10);
-        
-        doc.setFillColor(248, 250, 252);
-        doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8, 'F');
-        doc.setDrawColor(226, 232, 240);
-        doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8);
-
-        codeLines.forEach((line) => {
-          if (y > 270) {
-            doc.addPage();
-            y = 20;
-            doc.setFillColor(248, 250, 252);
-            doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8, 'F');
-            doc.setDrawColor(226, 232, 240);
-            doc.rect(margin - 2, y - 4, usableWidth + 4, (codeLines.length * 3) + 8);
-          }
-          doc.text(line, margin + 2, y);
-          y += 3;
-        });
       }
 
-      // Add footer
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text(`Generated by PitchCraft AI - Page ${i} of ${totalPages}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
-        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 5, { align: "center" });
+        doc.text(
+          `Generated by PitchCraft AI - Page ${i} of ${totalPages}`,
+          pageWidth / 2,
+          doc.internal.pageSize.getHeight() - 10,
+          { align: "center" }
+        );
       }
 
       doc.save("PitchCraft_Startup_Pitch.pdf");
-      
     } catch (error) {
       console.error("PDF download error:", error);
       alert("Error generating PDF. Please try again.");
@@ -940,7 +738,6 @@ Generate the HTML now:
     }
   };
 
-  // Format date helper function
   const formatDate = (date) => {
     if (!date) return 'Recent';
     try {
@@ -1034,169 +831,224 @@ Generate the HTML now:
     </button>
   );
 
+  // Hamburger Menu Button - Shows when sidebar is closed
+  const HamburgerButton = () => (
+    <button
+      onClick={() => setSidebarOpen(true)}
+      className={`
+        fixed top-4 left-4 z-30 p-2 pb-1 rounded-lg bg-gray-800 hover:bg-gray-700 transition-all duration-300
+        ${sidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}
+        shadow-lg border border-gray-700
+      `}
+      aria-label="Open sidebar"
+    >
+      <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+  );
+
   // Sidebar component
   const Sidebar = () => (
-    <aside className="w-64 bg-gray-900 border-r border-gray-700 flex flex-col hidden md:flex">
-      <div className="p-4 border-b border-gray-700">
-        <button
-          onClick={startNewChat}
-          className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="font-semibold">New Pitch</span>
-        </button>
-      </div>
+    <>
+      {/* Mobile Overlay */}
+      {sidebarOpen && window.innerWidth < 768 && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       
-      <div className="flex-1 overflow-y-auto p-2">
-        <div className="text-xs text-gray-500 px-3 py-2 uppercase tracking-wider">Recent Pitches</div>
-        {user && savedPitches.length > 0 ? (
-          savedPitches.map((pitch) => (
-            <div
-              key={pitch.id}
-              className="relative group"
-              onMouseEnter={() => setHoveredPitchId(pitch.id)}
-              onMouseLeave={() => setHoveredPitchId(null)}
+      {/* Hamburger Button - Shows when sidebar is closed */}
+      <HamburgerButton />
+      
+      {/* Sidebar */}
+      <aside 
+        ref={sidebarRef}
+        className={`
+          fixed md:relative z-50 w-64 bg-gray-900 border-r border-gray-700 flex flex-col h-full
+          transform transition-transform duration-300 ease-in-out
+          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0 md:w-0 md:opacity-0 md:pointer-events-none'}
+        `}
+      >
+        {/* Sidebar Header with Logo and Close Button */}
+        <div className="p-4 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent flex items-center gap-2">
+              ⚡ PitchCraft AI
+            </h1>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1 rounded-lg hover:bg-gray-800 transition-colors"
+              aria-label="Close sidebar"
             >
-              <button
-                onClick={() => loadPitch(pitch.id)}
-                className={`w-full text-left px-3 py-2.5 mb-1 rounded-lg hover:bg-gray-800 transition-all ${
-                  currentSessionId === pitch.id ? 'bg-gray-800 border-l-2 border-indigo-500' : ''
-                }`}
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-gray-700">
+          <button
+            onClick={startNewChat}
+            className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg flex items-center justify-center gap-2 transition-all transform hover:scale-105"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="font-semibold">New Pitch</span>
+          </button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-2">
+          <div className="text-xs text-gray-500 px-3 py-2 uppercase tracking-wider">Recent Pitches</div>
+          {user && savedPitches.length > 0 ? (
+            savedPitches.map((pitch) => (
+              <div
+                key={pitch.id}
+                className="relative group"
+                onMouseEnter={() => setHoveredPitchId(pitch.id)}
+                onMouseLeave={() => setHoveredPitchId(null)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-indigo-400">💡</span>
-                  <span className="truncate text-sm flex-1 text-left">
-                    {getPitchDisplayName(pitch)}
-                  </span>
-                </div>
-                <div className="text-xs text-gray-500 mt-1 pl-6">
-                  {formatDate(pitch.createdAt)}
-                </div>
-              </button>
+                <button
+                  onClick={() => loadPitch(pitch.id)}
+                  className={`w-full text-left px-3 py-2.5 mb-1 rounded-lg hover:bg-gray-800 transition-all ${
+                    currentSessionId === pitch.id ? 'bg-gray-800 border-l-2 border-indigo-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-indigo-400">💡</span>
+                    <span className="truncate text-sm flex-1 text-left">
+                      {getPitchDisplayName(pitch)}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 pl-6">
+                    {formatDate(pitch.createdAt)}
+                  </div>
+                </button>
 
-              {(hoveredPitchId === pitch.id || showMenuForPitch === pitch.id) && (
-                <div className="absolute right-2 top-2 z-10">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMenuForPitch(showMenuForPitch === pitch.id ? null : pitch.id);
-                    }}
-                    className="p-1.5 rounded-full hover:bg-gray-800 transition-colors"
-                  >
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-                    </svg>
-                  </button>
+                {(hoveredPitchId === pitch.id || showMenuForPitch === pitch.id) && (
+                  <div className="absolute right-2 top-2 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenuForPitch(showMenuForPitch === pitch.id ? null : pitch.id);
+                      }}
+                      className="p-1.5 rounded-full hover:bg-gray-800 transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                      </svg>
+                    </button>
 
-                  {showMenuForPitch === pitch.id && (
-                    <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-1 z-20">
-                      <button
-                        onClick={() => {
-                          setRenameModal({ show: true, pitchId: pitch.id, newName: getPitchDisplayName(pitch) });
-                          setShowMenuForPitch(null);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                        <span>Rename</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShareModal({ show: true, pitchId: pitch.id });
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l5.5-3.5L21 10m0 0l-4.5 7.5L10 17l5.5-3.5M21 10l-4.5 7.5M10 17H3m18 0h-3" />
-                        </svg>
-                        <span>Share</span>
-                      </button>
-                      <button
-                        onClick={() => deletePitch(pitch.id)}
-                        className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        <span>Delete</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+                    {showMenuForPitch === pitch.id && (
+                      <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-1 z-20">
+                        <button
+                          onClick={() => {
+                            setRenameModal({ show: true, pitchId: pitch.id, newName: getPitchDisplayName(pitch) });
+                            setShowMenuForPitch(null);
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                          <span>Rename</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShareModal({ show: true, pitchId: pitch.id });
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-700 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l5.5-3.5L21 10m0 0l-4.5 7.5L10 17l5.5-3.5M21 10l-4.5 7.5M10 17H3m18 0h-3" />
+                          </svg>
+                          <span>Share</span>
+                        </button>
+                        <button
+                          onClick={() => deletePitch(pitch.id)}
+                          className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="text-center text-gray-500 text-sm p-4">
+              {user ? "No saved pitches yet" : "Login to save pitches"}
             </div>
-          ))
+          )}
+        </div>
+
+        {user ? (
+          <div className="p-4 border-t border-gray-700">
+            <div className="flex items-center gap-3 mb-3">
+              <img
+                src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || user.email}&background=6366f1&color=fff`}
+                alt="user"
+                className="w-10 h-10 rounded-full ring-2 ring-indigo-500"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">
+                  {user.displayName || user.email?.split('@')[0]}
+                </p>
+                <p className="text-xs text-gray-400">Pro Member</p>
+              </div>
+            </div>
+            <button
+              onClick={logout}
+              className="w-full py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition-all"
+            >
+              Logout
+            </button>
+          </div>
         ) : (
-          <div className="text-center text-gray-500 text-sm p-4">
-            {user ? "No saved pitches yet" : "Login to save pitches"}
+          <div className="p-4 border-t border-gray-700">
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm mb-2"
+            >
+              Login
+            </button>
+            <button
+              onClick={() => navigate("/signup")}
+              className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
+            >
+              Sign Up
+            </button>
           </div>
         )}
-      </div>
-
-      {user ? (
-        <div className="p-4 border-t border-gray-700">
-          <div className="flex items-center gap-3 mb-3">
-            <img
-              src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || user.email}&background=6366f1&color=fff`}
-              alt="user"
-              className="w-10 h-10 rounded-full ring-2 ring-indigo-500"
-            />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold truncate">
-                {user.displayName || user.email?.split('@')[0]}
-              </p>
-              <p className="text-xs text-gray-400">Pro Member</p>
-            </div>
-          </div>
-          <button
-            onClick={logout}
-            className="w-full py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm transition-all"
-          >
-            Logout
-          </button>
-        </div>
-      ) : (
-        <div className="p-4 border-t border-gray-700">
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-sm mb-2"
-          >
-            Login
-          </button>
-          <button
-            onClick={() => navigate("/signup")}
-            className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm"
-          >
-            Sign Up
-          </button>
-        </div>
-      )}
-    </aside>
+      </aside>
+    </>
   );
 
   return (
-    <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-black text-gray-100 h-screen">
+    <section className="bg-gradient-to-br  from-gray-900 via-gray-800 to-black text-gray-100 h-screen">
       <div className="flex h-full">
         <Sidebar />
 
-        <main className="flex-1 flex flex-col">
-          <header className="px-6 py-4 bg-gray-900/70 border-b border-gray-700 backdrop-blur-sm">
+     <main className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'md:ml-0' : 'md:ml-0'}`}>
+          {/* Increased Header Size */}
+          {/* <header className={`px-6 bg-gray-900/70 border-b border-gray-700 backdrop-blur-sm ${sidebarOpen ? 'py-3' : 'py-3'}`}> */}
+          <header className={`px-6 bg-gray-900/70 border-b border-gray-700 backdrop-blur-sm ${sidebarOpen ? 'py-0' : currentSessionId ? 'py-3' : 'py-0'}`}>
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-3">
-                <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-                  ⚡ PitchCraft AI
-                </h1>
+              <div className="flex items-center gap-3 ms-10">
                 {currentSessionId && (
-                  <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded-full">
+                  <span className="text-sm bg-green-600/20 text-green-400  px-3 py-1.5 my-2  rounded-full">
                     Auto-saved
                   </span>
                 )}
                 {generatingPDF && (
-                  <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded-full flex items-center gap-1">
+                  <span className="text-sm bg-yellow-600/20 text-yellow-400 px-3 py-1.5 rounded-full flex items-center gap-1">
                     <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
                     Generating PDF...
                   </span>
@@ -1207,7 +1059,7 @@ Generate the HTML now:
                 <button
                   onClick={handleSavePDF}
                   disabled={generatingPDF}
-                  className={`px-3 py-1.5 text-sm rounded-lg transition-all flex items-center gap-1 ${
+                  className={`px-4 py-2 text-base rounded-lg transition-all flex items-center gap-2 ${
                     generatingPDF
                       ? "bg-gray-700 text-gray-500 cursor-not-allowed"
                       : "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
@@ -1215,15 +1067,15 @@ Generate the HTML now:
                 >
                   {generatingPDF ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                       Generating...
                     </>
                   ) : (
                     <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                       </svg>
-                      PDF
+                      Download PDF
                     </>
                   )}
                 </button>
@@ -1234,33 +1086,33 @@ Generate the HTML now:
           <div className="flex-1 overflow-y-auto px-4 py-6">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <div className="text-center max-w-md">
-                  <div className="text-6xl mb-6">🚀</div>
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent mb-4">
+                <div className="text-center max-w-2xl">
+                  <div className="text-8xl mb-8">🚀</div>
+                  <h2 className="text-4xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent mb-6">
                     Welcome to PitchCraft AI
                   </h2>
-                  <p className="text-gray-400 mb-8 leading-relaxed">
+                  <p className="text-gray-400 mb-8 leading-relaxed text-lg">
                     Turn your raw startup idea into a polished pitch + ready-to-use landing page — all with AI.
                     Type your idea below to get started.
                   </p>
                   
                   <div className="space-y-4">
-                    <div className="flex items-end w-full p-2 bg-gray-800 rounded-xl border border-gray-700 focus-within:ring-2 focus-within:ring-indigo-500/70 transition-all shadow-lg mx-auto max-w-lg">
+                    <div className="flex items-end w-full p-3 bg-gray-800 rounded-xl border border-gray-700 focus-within:ring-2 focus-within:ring-indigo-500/70 transition-all shadow-lg mx-auto max-w-lg">
                       <div className="relative shrink-0">
                         <select
                           value={tone}
                           onChange={(e) => setTone(e.target.value)}
-                          className="appearance-none bg-transparent h-10 pl-10 pr-8 text-gray-100 text-sm outline-none cursor-pointer theme-select"
+                          className="appearance-none bg-transparent h-12 pl-10 pr-8 text-gray-100 text-base outline-none cursor-pointer theme-select"
                           aria-label="Select pitch tone"
                         >
                           <option value="Formal" className="theme-option">Formal</option>
                           <option value="Fun" className="theme-option">Fun</option>
                         </select>
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-base pointer-events-none">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg pointer-events-none">
                           {tone === "Formal" ? "🎩" : "🎉"}
                         </span>
                         <svg
-                          className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -1269,7 +1121,7 @@ Generate the HTML now:
                         </svg>
                       </div>
 
-                      <div className="self-stretch w-px bg-gray-700 mx-2"></div>
+                      <div className="self-stretch w-px bg-gray-700 mx-3"></div>
 
                       <div className="flex-1 relative flex items-end">
                         <textarea
@@ -1287,27 +1139,27 @@ Generate the HTML now:
                           placeholder="Describe your startup idea..."
                           disabled={loading}
                           rows={1}
-                          className="w-full min-h-[40px] max-h-[120px] leading-6 p-2 bg-transparent text-gray-100 placeholder-gray-500 outline-none resize-none transition-all"
+                          className="w-full min-h-[48px] max-h-[120px] leading-7 p-3 bg-transparent text-gray-100 placeholder-gray-500 outline-none resize-none transition-all text-base"
                           aria-label="Startup idea input"
                         />
                         <button
                           onClick={() => handleGenerate()}
                           disabled={loading || !idea.trim()}
                           aria-label="Generate pitch"
-                          className={`shrink-0 h-8 w-8 grid place-items-center rounded-lg transition-all shadow-md ml-2
+                          className={`shrink-0 h-10 w-10 grid place-items-center rounded-lg transition-all shadow-md ml-3
                             ${loading || !idea.trim()
                               ? "bg-gray-700 text-gray-500 cursor-not-allowed"
                               : "bg-gradient-to-br from-indigo-500 to-purple-500 text-white hover:scale-105 hover:shadow-indigo-500/30"
                             }`}
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" transform="rotate(90 12 12)" />
                           </svg>
                         </button>
                       </div>
                     </div>
 
-                    <div className="text-xs text-gray-500 mt-2 text-center select-none">
+                    <div className="text-sm text-gray-500 mt-3 text-center select-none">
                       Press Enter to send • Shift+Enter for new line
                     </div>
                   </div>
@@ -1568,6 +1420,7 @@ Generate the HTML now:
             </div>
           )}
         </main>
+
 
         {/* Modals */}
         {renameModal.show && (
